@@ -1,0 +1,18 @@
+## Interface: 30300
+## Title: |cff00ffff*|r |cfffff0f5pretty_lootalert|r
+## Notes: |cffcaf7faLoot toast addon from pretty stuff|r
+## Notes-ruRU: |cffcaf7faОповещение о луте из прекрасного стаффа|r
+## Version: 2.2
+## Author: s0high
+## SavedVariables: PrettyLootAlertDB
+
+## OptionalDeps: Ace3
+## X-Embeds: Ace3
+
+embeds.xml
+
+utils.lua  
+locale.lua
+options.lua
+core.lua
+pretty_lootalert.xml
