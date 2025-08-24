@@ -8,22 +8,29 @@ local AceConfigDialog = LibStub("AceConfigDialog-3.0");
 local AceDB = LibStub("AceDB-3.0");
 local AceDBOptions = LibStub("AceDBOptions-3.0");
 local AceConfigRegistry = LibStub("AceConfigRegistry-3.0");
+
 local GetAuctionItemClasses = GetAuctionItemClasses;
 local Weapon, Armor, Container, Consumable, _, TradeGoods, Projectile, Quiver, Recipe, Gem, Misc, Quest = GetAuctionItemClasses();
+
 local PrettyLootAlert = LibStub("AceAddon-3.0"):NewAddon("PrettyLootAlert", "AceConsole-3.0");
 
-private.config = {};
-
+-- Default configuration
 local defaults = {
     profile = {
+        -- Technical settings
         scale = 1, sound = true, time = 0.30, numbuttons = 4, anims = true,
         offset_x = 4, point_x = 0, point_y = 0,
+        -- Activity settings
         looting = true, creating = true, rolling = true,
+        -- Toast types
         money = true, recipes = true, honor = true,
+        -- Filtering
         ignore_level = true, low_level = 2, max_level = 4, filter = false,
         filter_type = {}
     }
 };
+
+private.config = {};
 
 function PrettyLootAlert:SyncConfig()
     for key, value in pairs(self.db.profile) do
@@ -43,8 +50,12 @@ local options = {
             args = {
                 header_display = { order = 1, type = "header", name = "Display" },
                 scale = { order = 2, type = "range", name = "Scale", min = 0.5, max = 2.0, step = 0.1,
-                    get = function() return PrettyLootAlert.db.profile.scale end,
-                    set = function(_, val) PrettyLootAlert.db.profile.scale = val; private.config.scale = val; end,
+                get = function() return PrettyLootAlert.db.profile.scale end,
+                set = function(_, val)
+                print("|cff00ff00PRETTYLOOTALERT: SAVING NEW SCALE ->", val, "|r")  
+                PrettyLootAlert.db.profile.scale = val; 
+                private.config.scale = val; 
+                end,
                 },
                 numbuttons = { order = 3, type = "range", name = "Max Alerts", min = 1, max = 8, step = 1,
                     get = function() return PrettyLootAlert.db.profile.numbuttons end,
@@ -74,6 +85,7 @@ local options = {
                     func = function()
                         if _G.PrettyLootAlert_ToggleAnchor then
                             _G.PrettyLootAlert_ToggleAnchor()
+                            -- Just raise the flag. Core.lua will handle the refresh.
                             _G.PLA_REFRESH_PANEL_NEEDED = true
                         end
                     end,
@@ -151,17 +163,13 @@ local options = {
 };
 
 function PrettyLootAlert:OnInitialize()
-    self.db = AceDB:New("PrettyLootAlertDB", defaults, true);
-    
+    self.db = AceDB:New("PrettyLootAlertDB", defaults);
     self.db.RegisterCallback(self, "OnProfileChanged", "SyncConfig");
     self.db.RegisterCallback(self, "OnProfileCopied", "SyncConfig");
     self.db.RegisterCallback(self, "OnProfileReset", "SyncConfig");
-    
     options.args.profiles.args.profiles = AceDBOptions:GetOptionsTable(self.db);
-    
     AceConfig:RegisterOptionsTable("PrettyLootAlert", options);
     AceConfigDialog:AddToBlizOptions("PrettyLootAlert", "Pretty Loot Alert");
-    
     self:RegisterChatCommand("pla", "SlashCommand");
     self:RegisterChatCommand("prettyloot", "SlashCommand");
 

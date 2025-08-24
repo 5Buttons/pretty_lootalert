@@ -60,6 +60,17 @@ local LE_ITEM_QUALITY_UNCOMMON = 2;
 local LE_ITEM_QUALITY_WOW_TOKEN = 8;
 local LE_ITEM_QUALITY_ARTIFACT = 6;
 
+-- Ensure all quality constants are definitely numbers
+LE_ITEM_QUALITY_COMMON = tonumber(LE_ITEM_QUALITY_COMMON) or 1;
+LE_ITEM_QUALITY_EPIC = tonumber(LE_ITEM_QUALITY_EPIC) or 4;
+LE_ITEM_QUALITY_HEIRLOOM = tonumber(LE_ITEM_QUALITY_HEIRLOOM) or 7;
+LE_ITEM_QUALITY_LEGENDARY = tonumber(LE_ITEM_QUALITY_LEGENDARY) or 5;
+LE_ITEM_QUALITY_POOR = tonumber(LE_ITEM_QUALITY_POOR) or 0;
+LE_ITEM_QUALITY_RARE = tonumber(LE_ITEM_QUALITY_RARE) or 3;
+LE_ITEM_QUALITY_UNCOMMON = tonumber(LE_ITEM_QUALITY_UNCOMMON) or 2;
+LE_ITEM_QUALITY_WOW_TOKEN = tonumber(LE_ITEM_QUALITY_WOW_TOKEN) or 8;
+LE_ITEM_QUALITY_ARTIFACT = tonumber(LE_ITEM_QUALITY_ARTIFACT) or 6;
+
 local LOOT_ROLL_TYPE_NEED = 1;
 local LOOT_ROLL_TYPE_GREED = 2;
 local LOOT_ROLL_TYPE_DISENCHANT = 3;
@@ -139,13 +150,22 @@ LootAlertFrameMixIn.alertQueue = {};
 LootAlertFrameMixIn.alertButton = {};
 
 function LootAlertFrameMixIn:AddAlert(name, link, quality, texture, count, ignore, label, toast, rollType, rollLink, tip, money, subType)
+	if type(quality) == "string" then
+		quality = tonumber(quality);
+	end
+	if not quality or type(quality) ~= "number" or quality ~= quality then  -- NaN check
+		quality = 0;
+	end
 	if not ignore and not config.ignore_level then
-		if UnitLevel("player") < 80 then
-			if quality < config.low_level then
+		local playerLevel = UnitLevel("player") or 1;
+		local qualityLow = tonumber(config.low_level) or 0;
+		local qualityMax = tonumber(config.max_level) or 0;
+		if playerLevel < 80 then
+			if quality < qualityLow then
 				return;
 			end
 		else
-			if quality < config.max_level then
+			if quality < qualityMax then
 				return;
 			end
 		end
@@ -181,12 +201,12 @@ function LootAlertFrameMixIn:AdjustAnchors()
 			if button.waitAndAnimOut:GetProgress() <= 0.74 then
 				if not previousButton or previousButton == button then
 					if DungeonCompletionAlertFrame1 and DungeonCompletionAlertFrame1:IsShown() then
-						button:SetPoint("BOTTOM", DungeonCompletionAlertFrame1, "TOP", config.point_x, config.point_y);
+						button:SetPoint("BOTTOM", DungeonCompletionAlertFrame1, "TOP", config.point_x or 0, config.point_y or 0);
 					else
-						button:SetPoint("CENTER", "UIParent", "CENTER", config.point_x, config.point_y);
+						button:SetPoint("CENTER", "UIParent", "CENTER", config.point_x or 0, config.point_y or 0);
 					end
 				else
-					button:SetPoint("BOTTOM", previousButton, "TOP", 0, config.offset_x);
+					button:SetPoint("BOTTOM", previousButton, "TOP", 0, config.offset_x or 4);
 				end
 			end
 			previousButton = button;
@@ -196,7 +216,6 @@ end
 
 function LootAlertFrame_OnLoad(self)
 	self.updateTime = config.time or 0.30;
-	
 	self:RegisterEvent("CHAT_MSG_LOOT");
 	self:RegisterEvent("CHAT_MSG_SYSTEM");
 	self:RegisterEvent("CHAT_MSG_MONEY");
@@ -248,7 +267,6 @@ local function LootAlertFrame_HandleChatMessage(message)
 			return link, 1, rollType, roll;
 		end
 	end
-  
 	return link, quantity, rollType, roll;
 end
 
@@ -264,7 +282,6 @@ function LootAlertFrame_OnEvent(self, event, ...)
 		local itemCreate				  = arg1:match(P_LOOT_ITEM_CREATED_SELF);
 		local count						  = arg1:match(P_LOOT_COUNT);
 		local itemRoll, _, rollType, roll = LootAlertFrame_HandleChatMessage(arg1);
-		
 		if not itemName and not player then
 			if itemCreate and config.creating then
 				itemName 	= itemCreate;
@@ -283,17 +300,27 @@ function LootAlertFrame_OnEvent(self, event, ...)
 
 		if itemName then
 			local name, link, quality, iLevel, _, itemType, subType, _, _, texture = GetItemInfo(itemName);
-			local legendary	  = quality == LE_ITEM_QUALITY_LEGENDARY;
-			local average	  = quality >= LE_ITEM_QUALITY_UNCOMMON and not legendary;
-			local common	  = quality <= LE_ITEM_QUALITY_COMMON;
-			local heroic	  = iLevel and iLevel >= 271 and not legendary;
+			if type(quality) == "string" then
+				quality = tonumber(quality);
+			end
+			if not quality or type(quality) ~= "number" or quality ~= quality then
+				quality = 0;
+			end
+			if type(iLevel) == "string" then
+				iLevel = tonumber(iLevel);
+			end
+			if not iLevel or type(iLevel) ~= "number" or iLevel ~= iLevel then
+				iLevel = 0;
+			end
+			local legendary	  = (quality == LE_ITEM_QUALITY_LEGENDARY);
+			local average	  = (quality >= LE_ITEM_QUALITY_UNCOMMON) and not legendary;
+			local common	  = (quality <= LE_ITEM_QUALITY_COMMON);
+			local heroic	  = (iLevel >= 271) and not legendary;
 			local pets		  = subType == PET or subType == PETS;
 			local mounts	  = subType == ITEM_TYPE_MOUNT or subType == ITEM_TYPE_MOUNTS;
-			
 			if average then toast = "defaulttoast"; end
-			if common then toast = "commontoast"; end
+			if common then toast = "commontoast"; end  
 			if heroic then toast = "heroictoast"; end
-			
 			if legendary then
 				label = LEGENDARY_ITEM_LOOT_LABEL;
 				toast = "legendarytoast";
@@ -304,8 +331,16 @@ function LootAlertFrame_OnEvent(self, event, ...)
 				toast = "mounttoast";
 			end
 			
+			if config.filter then
+				for _, ignored in ipairs(config.filter_type or {}) do
+					if tostring(itemType) == tostring(ignored) then
+						return;
+					end
+				end
+			end
+			
 			if link then
-				LootAlertFrameMixIn:AddAlert(name, link, quality, texture, count, false, label, toast, rollType, roll);
+				LootAlertFrameMixIn:AddAlert(name, link, quality, texture, count, config.ignore_level, label, toast, rollType, roll);
 			end
 		end
 	end
@@ -313,12 +348,13 @@ function LootAlertFrame_OnEvent(self, event, ...)
 	if event == "CHAT_MSG_MONEY" and config.money then
 		local currency = arg1:match(PATTERN_LOOT_MONEY);
 		if currency then
-			local gold = arg1:match(GOLD) or 0;
-			local silver = arg1:match(SILVER) or 0;
-			local copper = arg1:match(COPPER) or 0;
-			local money = tonumber(copper) + (tonumber(silver) * 100) + (tonumber(gold) * 10000);
+			local gold = tonumber(arg1:match(GOLD)) or 0;
+			local silver = tonumber(arg1:match(SILVER)) or 0;
+			local copper = tonumber(arg1:match(COPPER)) or 0;
+			local money = copper + (silver * 100) + (gold * 10000);
 			local amount = GetMoneyString(money, true);
-			LootAlertFrameMixIn:AddAlert(amount, false, LE_ITEM_QUALITY_ARTIFACT, nil, nil, true, YOU_RECEIVED_LABEL, "moneytoast", nil, nil, nil, money);
+			local moneyQuality = LE_ITEM_QUALITY_ARTIFACT;  -- This is 6
+			LootAlertFrameMixIn:AddAlert(amount, false, moneyQuality, nil, nil, true, YOU_RECEIVED_LABEL, "moneytoast", nil, nil, nil, money);
 		end
 	end
 	
@@ -334,6 +370,7 @@ function LootAlertFrame_OnEvent(self, event, ...)
 						
 						if link then
 							local tip = ERR_LEARN_RECIPE_S:gsub("%%s", skill);
+							quality = tonumber(quality) or 0;
 							LootAlertFrameMixIn:AddAlert(skill, link, quality, picn, false, true, NEW_RECIPE_LEARNED_TITLE, "recipetoast", nil, nil, tip, false, prof);
 							break;
 						end
@@ -392,6 +429,7 @@ function LootAlertButtonTemplate_OnLoad(self)
 end
 
 local function NewRecipeLearnedAlertFrame_GetStarTextureFromRank(quality)
+	quality = tonumber(quality) or 0;
 	if quality == 2 then return "|T"..assets.."toast-star:12:12:0:0:32:32:0:21:0:21|t";
 	elseif quality == 3 then return "|T"..assets.."toast-star-2:12:24:0:0:64:32:0:42:0:21|t";
 	elseif quality == 4 then return "|T"..assets.."toast-star-3:12:36:0:0:64:32:0:64:0:21|t"; end
@@ -401,15 +439,24 @@ end
 function LootAlertButtonTemplate_OnShow(self)
 	if not self.data then self:Hide(); return; end
 	local data = self.data;
-	
 	if data.name then
 		local isDefault = data.toast == "defaulttoast"; local isRecipe = data.toast == "recipetoast";
 		local isBattlefield = data.toast == "battlefieldtoast"; local isMoney = data.toast == "moneytoast";
 		local isLegendary = data.toast == "legendarytoast"; local isCommon = data.toast == "commontoast";
-		local qualityColor = ITEM_QUALITY_COLORS[data.quality];
+		-- Force convert quality to number with extensive safety
+		local quality = data.quality;
+		if type(quality) == "string" then
+			quality = tonumber(quality);
+			print("DEBUG: Converted string quality:", data.quality, "to number:", quality)
+		end
+		if not quality or type(quality) ~= "number" then
+			print("DEBUG: Invalid quality, defaulting to 0:", quality, type(quality))
+			quality = 0;
+		end
+		data.quality = quality;  -- Store back the safe number
+		local qualityColor = ITEM_QUALITY_COLORS[quality];
 		local isAverage = not isRecipe and not isMoney and not isCommon;
-	
-		self.Count:SetText(data.count and data.count > 1 and data.count or "");
+		self.Count:SetText(data.count and tonumber(data.count) > 1 and data.count or "");
 		self.Icon:SetTexture(data.texture); self.Icon:SetShown(isAverage);
 		self.IconBorder:SetShown(isAverage); self.LessIcon:SetTexture(data.texture);
 		self.ItemName:SetText(data.name); self.ItemName:SetShown(isAverage);
@@ -441,13 +488,17 @@ function LootAlertButtonTemplate_OnShow(self)
 			self.RecipeIcon:SetTexture(data.texture);
 			local craftIcon = PROFESSION_ICON_TCOORDS[data.subType];
 			if craftIcon then self.RecipeIcon:SetTexCoord(unpack(craftIcon)); end
-			local rankTexture = NewRecipeLearnedAlertFrame_GetStarTextureFromRank(data.quality);
+			local rankTexture = NewRecipeLearnedAlertFrame_GetStarTextureFromRank(quality);
 			self.RecipeName:SetFormattedText(rankTexture and "%s %s" or "%s", data.name, rankTexture);
 			self.RecipeTitle:SetText(data.label);
 		end
 
 		if qualityColor then self.ItemName:SetTextColor(qualityColor.r, qualityColor.g, qualityColor.b); end
-		if LOOT_BORDER_BY_QUALITY[data.quality] then self.IconBorder:SetTexCoord(unpack(LOOT_BORDER_BY_QUALITY[data.quality])); end
+		
+		-- Ensure quality is used consistently as the converted number
+		if LOOT_BORDER_BY_QUALITY[quality] then 
+			self.IconBorder:SetTexCoord(unpack(LOOT_BORDER_BY_QUALITY[quality])); 
+		end
 		
 		if config.sound then
 			if isLegendary then PlaySoundFile(SOUNDKIT.UI_LEGENDARY_LOOT_TOAST);
@@ -488,7 +539,8 @@ end
 function LootAlertButtonTemplate_OnEnter(self)
 	GameTooltip:SetOwner(self, "ANCHOR_RIGHT", -14, -6);
 	if self.tip then
-		GameTooltip:SetText(self.name, 1, 1, 1);
+		local name = tostring(self.name or "");
+		GameTooltip:SetText(name, 1, 1, 1);
 		GameTooltip:AddLine(self.tip, nil, nil, nil, 1);
 	elseif self.money then
 		GameTooltip:AddLine(YOU_RECEIVED_LABEL);
@@ -496,7 +548,8 @@ function LootAlertButtonTemplate_OnEnter(self)
 	elseif self.hyperLink then
 		GameTooltip:SetHyperlink(self.hyperLink);
 	else
-		GameTooltip:SetText(self.name, 1,1,1);
+		local name = tostring(self.name or "");
+		GameTooltip:SetText(name, 1, 1, 1);
 	end
 	GameTooltip:Show();
 end
@@ -528,13 +581,15 @@ anchor:SetScript("OnDragStop", function(self)
 	local x = self:GetLeft() + (self:GetWidth() / 2) - (UIParent:GetWidth() / 2)
 	local y = self:GetTop() - (self:GetHeight() / 2) - (UIParent:GetHeight() / 2)
 	
-	x = floor(x + 0.5)
-	y = floor(y + 0.5)
+	x = math.floor(x + 0.5)
+	y = math.floor(y + 0.5)
 	
 	config.point_x = x
 	config.point_y = y
-	LibStub("AceAddon-3.0"):GetAddon("PrettyLootAlert").db.profile.point_x = x
-	LibStub("AceAddon-3.0"):GetAddon("PrettyLootAlert").db.profile.point_y = y
+	if LibStub and LibStub("AceAddon-3.0"):GetAddon("PrettyLootAlert", true) then
+		LibStub("AceAddon-3.0"):GetAddon("PrettyLootAlert").db.profile.point_x = x
+		LibStub("AceAddon-3.0"):GetAddon("PrettyLootAlert").db.profile.point_y = y
+	end
 	
 	_G.PLA_REFRESH_PANEL_NEEDED = true
 end)
